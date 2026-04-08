@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 class EmptyResponseError(Exception):
 	pass
+	
+class MaxRedirectError(Exception):
+	pass
 
 """
 Forms a HTTP request.
@@ -81,10 +84,15 @@ url: URL to send request to (string)
 body: Payload body for request (string)
 headers (optional): Custom headers for the request (list)
 skip_ssl (optional): skips SSL certificate check, if True. Defaults to False (bool)
+redirects (optional): Follow every redirect. Defaults to True (bool)
+head (optional): Force method to HEAD and get only headers. Defaults to False (bool)
 Returns:
-response: HTTP response from the server (string)
+resheaders: response headers (string)
+data: response data (string)
+status: status code from the server (string)
 """
-def send_request(method, url, body, headers=[], skip_ssl=False):
+def send_request(method, url, body, reqheaders=[], skip_ssl=False, redirects=True, head=False):
+	global redirect_count
 	proto, host, path, port = split_url(url)
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	s.connect((host, port))
@@ -99,7 +107,7 @@ def send_request(method, url, body, headers=[], skip_ssl=False):
 			context = ssl.create_default_context()
 			s = context.wrap_socket(s, server_hostname=host)
 		logger.debug("Using HTTPS")
-	request = form_request(method, host, path, body, headers)
+	request = form_request(method, host, path, body, reqheaders)
 	logger.debug(("Request:\n"
 		"-------->"
 	))
@@ -115,5 +123,33 @@ def send_request(method, url, body, headers=[], skip_ssl=False):
 	if response == "":
 		raise EmptyResponseError("Server returned empty response")
 	ind = response.find("\r\n\r\n")
-	headers, data = response.split("\r\n\r\n")[0], response[ind:]
-	return headers, data, headers.split()[1]
+	resheaders, data = response.split("\r\n\r\n")[0], response[ind:]
+	status = resheaders.split()[1]
+	data = data.strip("\r\n\r\n")
+	logger.debug("Response:")
+	logger.debug("<--------")
+	logger.debug(resheaders + "\n" + data)
+	if not head:
+		logger.info(data)
+	else:
+		logger.debug(resheaders + "\n" + data)
+	if method == "HEAD":
+		logger.info(resheaders)
+	if status == "301" or status == "302" or status == "307":
+		if not redirects:
+			if redirect_count > max_redirect:
+				raise MaxRedirectError("Reached max amount of redirects allowed. You can change the max amount by adding -M option")
+			logger.debug("Redirecting to location from response...")
+			ind = resheaders.rfind("Location: ")
+			if ind != -1:
+				ind = ind + len("Location: ")
+				end = resheaders.find("\r", ind)
+				redirect_count += 1
+				if end != -1:
+					send_request(method, resheaders[ind:end], body, reqheaders, skip_ssl, redirects)
+				else:
+					send_request(method, resheaders[ind:], body, reqheaders, skip_ssl, redirects)
+			else:
+				logger.warn("Server returned 301 error but did not specify Location header. Not redirecting you anywhere i guess...")
+	redirect_count = 0
+	return resheaders, data, status

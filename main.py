@@ -19,7 +19,7 @@ parser.add_argument("-r", "--no-redirect", help="Do not follow any redirects", a
 parser.add_argument("-U", "--user-agent", help="Sets custom user-agent.", default="zerohttp/1.0")
 parser.add_argument("-v", "--verbose", help="Make output more talkative", action="store_true")
 		
-		
+						
 def httpclient(url):
 	global logger
 	log_level = logging.DEBUG if args.verbose else logging.INFO
@@ -48,43 +48,16 @@ def httpclient(url):
 		args.header.append(f"Content-Type: {args.content_type}\r\n")
 	args.header.append(f"User-Agent: {args.user_agent}\r\n")
 	try:
-		headers, data, status = send_request(args.method, url, args.body, args.header, args.skip_ssl)
+		headers, data, status = send_request(args.method, url, args.body, args.header, args.skip_ssl, args.no_redirect, args.head)
 	except ssl.SSLError:
 		logger.error("SSL certificate check returned error! You can bypass it by adding -k option, but remember that this makes you vulnerable to MITM attacks!")
 		exit()
-	data = data.strip("\r\n\r\n")
-	logger.debug("Response:")
-	logger.debug("<--------")
-	if not args.head:
-		logger.info(data)
-	else:
-		logger.debug(headers + "\n" + data)
-	if args.method == "HEAD":
-		logger.info(headers)
 	if args.output:
 		with open(args.output, "w") as f:
 			if args.save_headers:
 				f.write(headers)
 			f.write(data)
 		logger.debug("Saved to the file " + args.output)
-	if status == "301" or status == "302" or status == "307":
-		if not args.no_redirect:
-			if redirect_count > max_redirect:
-				print("Hit max redirects count... Exiting")
-				exit()
-			logger.debug("Redirecting to location from response...")
-			ind = headers.rfind("Location: ")
-			if ind != -1:
-				ind = ind + len("Location: ")
-				end = headers.find("\r", ind)
-				redirect_count += 1
-				if end != -1:
-					httpclient(headers[ind:end])
-				else:
-					httpclient(headers[ind:])
-			else:
-				logger.warn("Server returned 301 error but did not specify Location header. Not redirecting you anywhere i guess...")
-	redirect_count = 0
 if __name__ == "__main__":
 	args = parser.parse_args()
 	httpclient(args.url)
