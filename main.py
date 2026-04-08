@@ -18,7 +18,6 @@ parser.add_argument("-p", "--post", help="Change method to POST. Useful if you'r
 parser.add_argument("-r", "--no-redirect", help="Do not follow any redirects", action="store_true")
 parser.add_argument("-U", "--user-agent", help="Sets custom user-agent.", default="zerohttp/1.0")
 parser.add_argument("-v", "--verbose", help="Make output more talkative", action="store_true")
-args = parser.parse_args()
 		
 		
 def httpclient(url):
@@ -86,4 +85,6 @@ def httpclient(url):
 			else:
 				logger.warn("Server returned 301 error but did not specify Location header. Not redirecting you anywhere i guess...")
 	redirect_count = 0
-httpclient(args.url)
+if __name__ == "__main__":
+	args = parser.parse_args()
+	httpclient(args.url)
