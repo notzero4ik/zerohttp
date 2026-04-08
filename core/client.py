@@ -146,9 +146,17 @@ def send_request(method, url, body, reqheaders=[], skip_ssl=False, redirects=Tru
 				end = resheaders.find("\r", ind)
 				redirect_count += 1
 				if end != -1:
-					send_request(method, resheaders[ind:end], body, reqheaders, skip_ssl, redirects)
+					resurl = resheaders[ind:end]
+					if "http" in resurl:
+						send_request(method, resurl, body, reqheaders, skip_ssl, redirects)
+					else: 
+						send_request(method, proto + "://" + host + resurl, body, reqheaders, skip_ssl, redirects)
 				else:
-					send_request(method, resheaders[ind:], body, reqheaders, skip_ssl, redirects)
+					resurl = resheaders[ind:]
+					if "http" in resurl:
+						send_request(method, resurl, body, reqheaders, skip_ssl, redirects)
+					else:
+						send_request(method, proto + "://" + host + resurl, body, reqheaders, skip_ssl, redirects)
 			else:
 				logger.warn("Server returned 301 error but did not specify Location header. Not redirecting you anywhere i guess...")
 	redirect_count = 0
